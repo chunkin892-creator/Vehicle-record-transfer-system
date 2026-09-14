@@ -11,6 +11,7 @@
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
     <style>
         :root {
@@ -361,10 +362,8 @@
         <div id="statusMsg" class="status-msg"></div>
     </div>
 </div>
+
 <script>
-// ============================================================
-// 全域變數
-// ============================================================
 const firebaseConfig = {
   apiKey: "AIzaSyANWLqV5bIFfMX_-byunnEBQ-gZmSn1cj4",
   authDomain: "driver-s-shift-report.firebaseapp.com",
@@ -375,15 +374,10 @@ const firebaseConfig = {
   appId: "1:790331468274:web:a0cecd6a8d5f8e157ba36b"
 };
 
-const DB_URL = "https://driver-s-shift-report-default-rtdb.asia-southeast1.firebasedatabase.app/.json";
-
 let rawCloudRecords = {};
 let filteredTrips = [];
 let dateGroups = {};
 
-// ============================================================
-// 安全工具函數
-// ============================================================
 function safeNum(v) {
     const n = Number(v);
     return Number.isFinite(n) ? n : 0;
@@ -393,16 +387,10 @@ function sanitizeFilename(name) {
     return String(name).replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').trim() || 'untitled';
 }
 
-// ============================================================
-// Firebase 初始化
-// ============================================================
 if (!firebase.apps.length) {
     firebase.initializeApp(firebaseConfig);
 }
 
-// ============================================================
-// Google 登入
-// ============================================================
 function signInWithGoogle() {
     const provider = new firebase.auth.GoogleAuthProvider();
     firebase.auth().signInWithPopup(provider)
@@ -438,9 +426,6 @@ firebase.auth().onAuthStateChanged(user => {
     }
 });
 
-// ============================================================
-// 主題控制
-// ============================================================
 window.onload = function() {
     initTheme();
     const today = new Date().toISOString().split('T')[0];
@@ -474,9 +459,6 @@ function setTheme(theme) {
     try { localStorage.setItem('app_theme', theme); } catch (e) {}
 }
 
-// ============================================================
-// 模式切換
-// ============================================================
 function handleModeChange() {
     const mode = document.getElementById('queryMode').value;
     if (mode === 'month') {
@@ -493,22 +475,18 @@ function handleModeChange() {
     applyLocalFilters();
 }
 
-// ============================================================
-// Firebase 讀取
-// ============================================================
 async function loadDataFromFirebase() {
     showNotice('🔥 正在從 Firebase 雲端讀取最新營運數據...', 'info');
     try {
-        const res = await fetch(DB_URL);
-        if (!res.ok) throw new Error(`伺服器回應代碼 ${res.status}`);
-        const val = await res.json();
-        if (!val || !val.records) {
+        const snapshot = await firebase.database().ref('records').once('value');
+        const val = snapshot.val();
+        if (!val) {
             showNotice('❌ Firebase 資料庫內無有效 records 資料！', 'error');
             rawCloudRecords = {};
             applyLocalFilters();
             return;
         }
-        rawCloudRecords = val.records;
+        rawCloudRecords = val;
         applyLocalFilters();
         showNotice('🎉 成功與 Firebase 連線同步！', 'success');
     } catch (err) {
@@ -516,9 +494,6 @@ async function loadDataFromFirebase() {
     }
 }
 
-// ============================================================
-// 本地篩選與分組
-// ============================================================
 function applyLocalFilters() {
     if (!rawCloudRecords || Object.keys(rawCloudRecords).length === 0) {
         filteredTrips = [];
@@ -584,9 +559,7 @@ function applyLocalFilters() {
 
     renderStatsAndPreview();
 }
-// ============================================================
-// 渲染統計與預覽
-// ============================================================
+
 function renderStatsAndPreview() {
     const dates = Object.keys(dateGroups).sort();
     let sumOct = 0, sumCash = 0;
@@ -657,9 +630,6 @@ function renderStatsAndPreview() {
     }
 }
 
-// ============================================================
-// Excel 樣式
-// ============================================================
 function thinBorder() {
     return {
         top: { style: 'thin', color: { argb: 'FFB0C4DE' } },
@@ -689,9 +659,6 @@ function applyPrintSetup(ws) {
     };
 }
 
-// ============================================================
-// 單日工作表
-// ============================================================
 function populateDailySheet(ws, dateKey, trips) {
     applyPrintSetup(ws);
 
@@ -930,9 +897,6 @@ function populateDailySheet(ws, dateKey, trips) {
     ];
 }
 
-// ============================================================
-// 彙總工作表
-// ============================================================
 function populateSummarySheet(ws, title, targetDates, dateData) {
     applyPrintSetup(ws);
 
@@ -1009,9 +973,6 @@ function populateSummarySheet(ws, title, targetDates, dateData) {
     ws.columns = [{ width: 13 }, { width: 11 }, { width: 11 }, { width: 11 }, { width: 9 }, { width: 16 }, { width: 16 }, { width: 16 }];
 }
 
-// ============================================================
-// 匯出功能
-// ============================================================
 async function exportFullMonthWorkbook() {
     try {
         const dates = Object.keys(dateGroups).sort();
@@ -1196,9 +1157,6 @@ async function exportAnnualSummaryOnly() {
     }
 }
 
-// ============================================================
-// 提示訊息
-// ============================================================
 function showNotice(msg, type) {
     const box = document.getElementById('statusMsg');
     if (!box) return;
